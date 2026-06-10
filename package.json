@@ -1,0 +1,25 @@
+{
+  "name": "omp-profile",
+  "version": "0.1.0",
+  "description": "VS Code Profile-style environment profiles for omp (oh-my-pi), exposed entirely as /profile slash commands.",
+  "type": "module",
+  "main": "index.ts",
+  "omp": {
+    "extensions": [
+      "index.ts"
+    ]
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "dependencies": {
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  },
+  "license": "MIT"
+}
