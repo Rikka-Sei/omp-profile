@@ -1,41 +1,49 @@
 # omp-profile
 
-VS Code Profile 式的「环境档案」扩展，为 [omp（oh-my-pi）](https://github.com/can1357/oh-my-pi)
-而做。把「主模型 + 工具集 + MCP + 规则」打包成命名 profile，**全部通过会话内
-`/profile` slash command** 操作——不碰 omp 核心、不依赖任何外部服务。
+给 [omp（oh-my-pi）](https://github.com/can1357/oh-my-pi) 加一套「环境档案」，
+就像 VS Code 的 Profile 一样：把你常用的一整套配置——主模型、工具集、要挂的
+MCP、规则——存成一个有名字的 profile，然后在会话里用 `/profile` 一键切换。
 
-> 当前进度：**P0 MVP**（数据模型 / 命令式创建 / `/profile` 切换 / list·show·delete /
-> 优先级链 / 目录自动切 / empty profile）。导出导入、向导、模板等见 PRD 后续迭代。
+## 为什么要它
+
+你大概有过这种场景：
+
+- 写项目 A 时想用 Opus 当主力、挂上数据库 MCP；
+- 跑实验目录只想用便宜模型、什么 MCP 都不挂；
+- 写文档又是另一套。
+
+omp 本身能配模型、工具、MCP，但没法把「这一整套」打包起来一键切。每次手动改
+配置很烦。omp-profile 就是来干这件事的：配一次，存成 profile，之后一句
+`/profile work` 就切过去。
 
 ## 安装
 
-作为 omp 扩展加载。把本目录放到下列任一位置：
+它是一个 omp 扩展。把这个目录放到 omp 会扫描的扩展位置之一：
 
-- 用户级：`~/.omp/agent/extensions/omp-profile/`
-- 项目级：`<项目>/.omp/extensions/omp-profile/`
+- 想全局用：`~/.omp/agent/extensions/omp-profile/`
+- 只给某个项目用：`<项目>/.omp/extensions/omp-profile/`
 
-然后安装依赖：
+然后装一下依赖（只有一个 `yaml`）：
 
 ```sh
-bun install   # 仅需 yaml 运行时依赖
+bun install
 ```
 
-omp 启动时会发现 `index.ts` 入口并加载该扩展（`@oh-my-pi/pi-coding-agent`
-由宿主在运行时注入，扩展自身不打包它）。
+下次启动 omp 就会自动加载它。
 
-## 用法
+## 用起来
 
 ```
-/profile                      打开选单，选中即切换
-/profile <name>               直接切换到指定 profile
-/profile list                 列出全部 profile（● 标记当前激活）
-/profile show [name]          查看 profile（省略则看当前）
-/profile create <name> [flags]  命令式创建
-/profile delete <name>        删除
-/profile help                 帮助
+/profile                  打开选单，挑一个切过去
+/profile work             直接切到名叫 work 的 profile
+/profile list             看看都有哪些 profile（带 ● 的是当前这个）
+/profile show             看当前 profile 的内容（也可以 /profile show work）
+/profile create <name>    建一个新的
+/profile delete <name>    删掉一个
+/profile help             忘了命令就敲这个
 ```
 
-`create` 常用 flag：
+建一个 profile，比如给项目 A：
 
 ```
 /profile create work \
@@ -44,73 +52,74 @@ omp 启动时会发现 `index.ts` 入口并加载该扩展（`@oh-my-pi/pi-codin
   --tools read,edit,bash,task \
   --mcp filesystem,postgres \
   --bind-path ~/work/projectA \
-  --description "项目 A 主力环境" \
-  --scope user        # user(默认) | project
+  --description "项目 A 主力环境"
 ```
 
-## Profile 文件
+`--bind-path` 把这个 profile 绑到一个目录：以后在 `~/work/projectA` 下面启动
+omp，它会自动切到 `work`，不用你手动敲。
 
-单文件 YAML，存放于 `~/.omp/agent/profiles/<name>.yml`（用户级）或
-`<项目>/.omp/profiles/<name>.yml`（项目级，同名时项目级优先）。
+## profile 长什么样
+
+就是一个 YAML 文件，放在 `~/.omp/agent/profiles/<name>.yml`（或者项目里的
+`.omp/profiles/<name>.yml`，项目里的同名会盖过全局的）。你也可以直接手写：
 
 ```yaml
 name: work
 description: 项目 A 主力环境
 modelRoles:
-  default: anthropic/claude-opus-4-5:high   # 支持 :off/:minimal/:low/:medium/:high/:xhigh
+  default: anthropic/claude-opus-4-5:high   # 后缀 :high 是思考档位，也能用 :low/:medium 等
   plan: openai/gpt-5.4
 tools: [read, edit, bash, task]
 mcp:
   enabled: [filesystem, postgres]
-  disabledServers: [legacy]
 rules: [house-style]
 boundPaths: [~/work/projectA]
 ```
 
-## 运行时能力与已知限制
+没写的字段会沿用 omp 本来的配置，不会被清空。
 
-切换 profile 时，基于 omp 真实 `ExtensionAPI` 能**热生效**的部分：
+## 切换的时候会发生什么
 
-| 内容 | 是否热生效 | 机制 |
-|---|---|---|
-| 主模型（default 角色） | ✅ | `setModel` |
-| thinking 档位 | ✅ | `setThinkingLevel` |
-| 工具集 | ✅ | `setActiveTools` |
-| 角色模型（smol/slow/plan/…） | ⚠️ 暂不 | `ExtensionAPI` 未暴露按角色覆盖 |
-| MCP 启用/禁用 | ⚠️ 暂不 | 同上 |
-| rules / fallbackChains | ⚠️ 暂不 | 同上 |
+切 profile 的瞬间，下面这些会**立刻生效**：
 
-未能热生效的字段会被**完整保存**在 profile 文件中，并在切换时通过 `notify`
-明确提示「未应用」，不会被静默丢弃。这些字段对 omp 自身配置/默认行为无副作用。
+- 主模型
+- 思考档位
+- 启用的工具集
 
-## 优先级链（PRD §4.6）
+而**角色模型**（plan / smol / slow 这些）、**MCP 的开关**、**规则**——这些 omp
+目前没有给扩展开运行时切换的口子，所以切 profile 时不会立刻改。它们仍然会**完整
+存在 profile 文件里**，切换时也会明确提示你「这几项这次没应用」，不会偷偷丢掉。
+（等 omp 把这些接口放开，或者走「改配置 + reload」的路子打通，这里就能补上。）
 
-由高到低：① 会话内 `/profile` 显式切换 → ② 目录绑定自动激活 → ③ omp 全局默认配置
-（`~/.omp/agent/`，本扩展从不修改它）。profile 内未设置的字段一律回落到下一级。
+## 谁说了算（优先级）
 
-## 开发
+同时有好几个来源想决定用哪个 profile 时，从高到低：
+
+1. 你在会话里 `/profile` 手动切的
+2. 当前目录绑定的（`boundPaths`）
+3. omp 自己的全局配置（`~/.omp/agent/`，这套东西 omp-profile 从不去动）
+
+## 本地开发
 
 ```sh
 bun install
-bun run typecheck   # tsc --noEmit
-bun test            # 单元测试
+bun run typecheck
+bun test
 ```
 
-类型声明 `types/omp.d.ts` 摘自真实 `@oh-my-pi/pi-coding-agent` 的 `.d.ts`，
-只声明用到的子集，保证编译期严格对齐宿主契约。
+`types/omp.d.ts` 是从 omp 真实的类型声明里摘出来的一小块，只留我们用到的部分，
+这样编译时能对着 omp 的真实接口检查，又不用把整个几十兆的宿主包拖进来。
 
-### 目录结构
+代码大致是这么分的：
 
 ```
-index.ts            扩展入口：注册 /profile + session_start 目录自动切
-src/roles.ts        角色与 thinking 档位常量
-src/model-ref.ts    解析 "provider/id:thinking"
-src/schema.ts       Profile 数据模型 + 校验
-src/builtin.ts      内置 empty profile
-src/resolve.ts      目录绑定匹配 + 优先级
-src/store.ts        profile YAML 存取（用户级/项目级）
-src/apply.ts        把 profile 应用到会话
-src/commands.ts     /profile 命令分发与参数解析
-types/omp.d.ts      宿主 API 类型声明子集
-test/               单元测试
+index.ts          入口：注册 /profile，挂上目录自动切的钩子
+src/model-ref.ts  解析 "provider/id:thinking" 这种模型写法
+src/schema.ts     profile 的结构和校验
+src/store.ts      读写 profile 文件
+src/resolve.ts    目录绑定的匹配
+src/apply.ts      把一个 profile 套用到当前会话
+src/commands.ts   /profile 各个子命令
+src/roles.ts      角色和思考档位的常量
+src/builtin.ts    内置的 empty profile（排障用，关掉所有 MCP 和多余工具）
 ```
