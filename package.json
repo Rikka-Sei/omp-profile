@@ -1,6 +1,6 @@
 {
   "name": "omp-profile",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "VS Code Profile-style environment profiles for omp (oh-my-pi), exposed entirely as /profile slash commands.",
   "type": "module",
   "main": "index.ts",

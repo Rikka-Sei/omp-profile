@@ -31,16 +31,20 @@ omp plugin install ./omp-profile                            # 本地目录，等
 ## 用法
 
 ```
-/profile              打开选单切换
+/profile              打开选单：切换 / 新建 / 恢复默认
 /profile work         切换到 work
 /profile list         列出全部 profile
 /profile show [name]  查看内容，省略 name 时查看当前 profile
-/profile create <name> [flags]
+/profile create       向导式创建（问答，不用记参数）
+/profile create <name> [flags]   命令式创建
+/profile reset        退出当前 profile，恢复 omp 默认模型与工具
 /profile delete <name>
 /profile help         查看帮助
 ```
 
-创建示例：
+切换后状态栏会常驻显示当前 profile（如 `▣ work`）。切换若会禁用较多当前工具，会先让你确认；切换后的提示会列出模型和工具的具体变化。
+
+命令式创建示例：
 
 ```
 /profile create work \

@@ -83,6 +83,8 @@ declare module "@oh-my-pi/pi-coding-agent" {
       dialogOptions?: ExtensionUIDialogOptions,
     ): Promise<string | undefined>;
     notify(message: string, type?: "info" | "warning" | "error"): void;
+    /** Set status text in the footer/status bar. Pass undefined to clear. */
+    setStatus(key: string, text: string | undefined): void;
   }
 
   /** Context passed to event handlers. */

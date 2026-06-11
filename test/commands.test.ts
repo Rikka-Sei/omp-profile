@@ -1,8 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import {
-  formatApplyResult,
+  computeToolDiff,
   formatProfileList,
+  formatSwitchSummary,
+  formatToolDiff,
   parseCreateArgs,
+  shouldConfirmSwitch,
+  statusText,
+  summarizeProfile,
   tokenize,
 } from "../src/commands.js";
 import type { StoredProfile } from "../src/store.js";
@@ -63,15 +68,73 @@ describe("parseCreateArgs", () => {
   });
 });
 
-describe("formatApplyResult", () => {
-  test("warning level when warnings present", () => {
-    const r = formatApplyResult("work", ["model=x"], ["bad spec"], ["MCP enable/disable"]);
-    expect(r.level).toBe("warning");
-    expect(r.message).toContain("work");
-    expect(r.message).toContain("MCP enable/disable");
+describe("computeToolDiff", () => {
+  test("reports added and removed", () => {
+    expect(computeToolDiff(["a", "b", "c"], ["b", "c", "d"])).toEqual({
+      added: ["d"],
+      removed: ["a"],
+    });
   });
-  test("info level when clean", () => {
-    expect(formatApplyResult("w", ["model=x"], [], []).level).toBe("info");
+  test("formatToolDiff renders both sides", () => {
+    expect(formatToolDiff({ added: ["x"], removed: ["y"] })).toBe("工具 +x -y");
+    expect(formatToolDiff({ added: [], removed: [] })).toBe("");
+  });
+});
+
+describe("shouldConfirmSwitch", () => {
+  test("true when 3+ tools are removed", () => {
+    expect(shouldConfirmSwitch(["a", "b", "c", "d"], ["a"])).toBe(true);
+  });
+  test("false when fewer than 3 removed", () => {
+    expect(shouldConfirmSwitch(["a", "b"], ["a"])).toBe(false);
+  });
+});
+
+describe("summarizeProfile", () => {
+  test("includes model and tool count", () => {
+    const s = summarizeProfile({
+      name: "x",
+      modelRoles: { default: "a/b:high" },
+      tools: ["r", "e"],
+    });
+    expect(s).toContain("a/b:high");
+    expect(s).toContain("2 工具");
+  });
+  test("falls back to description", () => {
+    expect(summarizeProfile({ name: "x", description: "hi" })).toBe("hi");
+  });
+  test("empty profile shows inherit hint", () => {
+    expect(summarizeProfile({ name: "x" })).toBe("（继承默认）");
+  });
+});
+
+describe("formatSwitchSummary", () => {
+  test("model change, tool diff, and warning level", () => {
+    const r = formatSwitchSummary(
+      "dev",
+      { from: "old", to: "new" },
+      "high",
+      { added: ["a"], removed: ["b"] },
+      ["MCP enable/disable"],
+      ["heads up"],
+    );
+    expect(r.level).toBe("warning");
+    expect(r.message).toContain("dev");
+    expect(r.message).toContain("old → new");
+    expect(r.message).toContain("未即时生效");
+  });
+  test("clean switch is info level", () => {
+    const r = formatSwitchSummary("x", undefined, undefined, { added: [], removed: [] }, [], []);
+    expect(r.level).toBe("info");
+  });
+});
+
+describe("statusText", () => {
+  test("shows the active profile", () => {
+    expect(statusText("dev")).toContain("dev");
+  });
+  test("shows default when none active", () => {
+    expect(statusText(undefined)).toContain("default");
   });
 });
 
