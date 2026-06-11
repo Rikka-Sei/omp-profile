@@ -1,105 +1,89 @@
 # omp-profile
 
-给 [omp（oh-my-pi）](https://github.com/can1357/oh-my-pi) 加一套「环境档案」，
-就像 VS Code 的 Profile 一样：把你常用的一整套配置——主模型、工具集、要挂的
-MCP、规则——存成一个有名字的 profile，然后在会话里用 `/profile` 一键切换。
+omp 的环境 profile 扩展。将一套配置（主模型、工具、MCP、规则）保存为一个命名
+profile，在会话中通过 `/profile` 切换。功能类似 VS Code 的 Profile。
 
-## 为什么要它
+## 用途
 
-你大概有过这种场景：
-
-- 写项目 A 时想用 Opus 当主力、挂上数据库 MCP；
-- 跑实验目录只想用便宜模型、什么 MCP 都不挂；
-- 写文档又是另一套。
-
-omp 本身能配模型、工具、MCP，但没法把「这一整套」打包起来一键切。每次手动改
-配置很烦。omp-profile 就是来干这件事的：配一次，存成 profile，之后一句
-`/profile work` 就切过去。
+omp 本身可以配置模型、工具和 MCP，但没有将整套配置打包切换的机制，切换项目时
+需要手动修改配置。profile 将这套配置保存为一个文件，按名称切换。例如项目 A
+使用 Opus 并启用数据库 MCP，实验目录使用低成本模型且不启用 MCP，通过
+`/profile` 即可切换。
 
 ## 安装
 
-它是一个 omp 扩展。把这个目录放到 omp 会扫描的扩展位置之一：
-
-- 想全局用：`~/.omp/agent/extensions/omp-profile/`
-- 只给某个项目用：`<项目>/.omp/extensions/omp-profile/`
-
-然后装一下依赖（只有一个 `yaml`）：
+通过 omp 的插件命令安装，依赖会自动处理：
 
 ```sh
-bun install
+omp plugin install github:Rikka-Sei/omp-profile
 ```
 
-下次启动 omp 就会自动加载它。
+也可使用其他来源：
 
-## 用起来
-
-```
-/profile                  打开选单，挑一个切过去
-/profile work             直接切到名叫 work 的 profile
-/profile list             看看都有哪些 profile（带 ● 的是当前这个）
-/profile show             看当前 profile 的内容（也可以 /profile show work）
-/profile create <name>    建一个新的
-/profile delete <name>    删掉一个
-/profile help             忘了命令就敲这个
+```sh
+omp plugin install omp-profile                              # 发布到 npm 后
+omp plugin install https://github.com/Rikka-Sei/omp-profile # 完整 git URL
+omp plugin install ./omp-profile                            # 本地目录，等同 omp plugin link，用于开发
 ```
 
-建一个 profile，比如给项目 A：
+安装后重启 omp 生效。
+
+## 用法
+
+```
+/profile              打开选单切换
+/profile work         切换到 work
+/profile list         列出全部 profile
+/profile show [name]  查看内容，省略 name 时查看当前 profile
+/profile create <name> [flags]
+/profile delete <name>
+/profile help         查看帮助
+```
+
+创建示例：
 
 ```
 /profile create work \
   --model anthropic/claude-opus-4-5:high \
-  --plan-model openai/gpt-5.4 \
   --tools read,edit,bash,task \
   --mcp filesystem,postgres \
-  --bind-path ~/work/projectA \
-  --description "项目 A 主力环境"
+  --bind-path ~/work/projectA
 ```
 
-`--bind-path` 把这个 profile 绑到一个目录：以后在 `~/work/projectA` 下面启动
-omp，它会自动切到 `work`，不用你手动敲。
+`--bind-path` 将 profile 绑定到目录，之后在该目录下启动 omp 会自动切换到它。
 
-## profile 长什么样
+## 配置文件
 
-就是一个 YAML 文件，放在 `~/.omp/agent/profiles/<name>.yml`（或者项目里的
-`.omp/profiles/<name>.yml`，项目里的同名会盖过全局的）。你也可以直接手写：
+profile 是单个 YAML 文件，位于 `~/.omp/agent/profiles/<name>.yml`（全局）或
+`<项目>/.omp/profiles/<name>.yml`（项目级，同名时覆盖全局）。也可手动编写：
 
 ```yaml
 name: work
-description: 项目 A 主力环境
 modelRoles:
-  default: anthropic/claude-opus-4-5:high   # 后缀 :high 是思考档位，也能用 :low/:medium 等
+  default: anthropic/claude-opus-4-5:high   # :high 为思考档位
   plan: openai/gpt-5.4
 tools: [read, edit, bash, task]
 mcp:
   enabled: [filesystem, postgres]
-rules: [house-style]
 boundPaths: [~/work/projectA]
 ```
 
-没写的字段会沿用 omp 本来的配置，不会被清空。
+未设置的字段沿用 omp 的现有配置。
 
-## 切换的时候会发生什么
+## 切换时的生效范围
 
-切 profile 的瞬间，下面这些会**立刻生效**：
+切换 profile 时立即生效的部分：主模型、思考档位、工具集。
 
-- 主模型
-- 思考档位
-- 启用的工具集
+角色模型、MCP 开关、规则目前不会立即生效，因为 omp 尚未向扩展开放这些项的运行
+时切换接口。它们仍会完整保存在 profile 文件中，切换时会提示哪些项未应用，不会
+被丢弃。相关接口开放后再补充支持。
 
-而**角色模型**（plan / smol / slow 这些）、**MCP 的开关**、**规则**——这些 omp
-目前没有给扩展开运行时切换的口子，所以切 profile 时不会立刻改。它们仍然会**完整
-存在 profile 文件里**，切换时也会明确提示你「这几项这次没应用」，不会偷偷丢掉。
-（等 omp 把这些接口放开，或者走「改配置 + reload」的路子打通，这里就能补上。）
+## 优先级
 
-## 谁说了算（优先级）
+由高到低：会话内 `/profile` 手动切换、目录绑定、omp 全局配置。本扩展不修改 omp
+自身的配置（`~/.omp/agent/`）。
 
-同时有好几个来源想决定用哪个 profile 时，从高到低：
-
-1. 你在会话里 `/profile` 手动切的
-2. 当前目录绑定的（`boundPaths`）
-3. omp 自己的全局配置（`~/.omp/agent/`，这套东西 omp-profile 从不去动）
-
-## 本地开发
+## 开发
 
 ```sh
 bun install
@@ -107,19 +91,5 @@ bun run typecheck
 bun test
 ```
 
-`types/omp.d.ts` 是从 omp 真实的类型声明里摘出来的一小块，只留我们用到的部分，
-这样编译时能对着 omp 的真实接口检查，又不用把整个几十兆的宿主包拖进来。
-
-代码大致是这么分的：
-
-```
-index.ts          入口：注册 /profile，挂上目录自动切的钩子
-src/model-ref.ts  解析 "provider/id:thinking" 这种模型写法
-src/schema.ts     profile 的结构和校验
-src/store.ts      读写 profile 文件
-src/resolve.ts    目录绑定的匹配
-src/apply.ts      把一个 profile 套用到当前会话
-src/commands.ts   /profile 各个子命令
-src/roles.ts      角色和思考档位的常量
-src/builtin.ts    内置的 empty profile（排障用，关掉所有 MCP 和多余工具）
-```
+`types/omp.d.ts` 是 omp 真实类型声明的子集，仅包含本扩展用到的部分，用于编译时
+对照宿主接口进行检查，避免引入完整的宿主包。
