@@ -54,21 +54,26 @@ omp plugin install ./omp-profile                            # 本地目录，等
 
 ## 配置文件
 
-profile 是单个 YAML 文件，位于 `~/.omp/agent/profiles/<name>.yml`（全局）或
-`<项目>/.omp/profiles/<name>.yml`（项目级，同名时覆盖全局）。也可手动编写：
+profile 是单个 JSON 文件，位于 `~/.omp/agent/profiles/<name>.json`（全局）或
+`<项目>/.omp/profiles/<name>.json`（项目级，同名时覆盖全局）。也可手动编写：
 
-```yaml
-name: work
-modelRoles:
-  default: anthropic/claude-opus-4-5:high   # :high 为思考档位
-  plan: openai/gpt-5.4
-tools: [read, edit, bash, task]
-mcp:
-  enabled: [filesystem, postgres]
-boundPaths: [~/work/projectA]
+```json
+{
+  "name": "work",
+  "modelRoles": {
+    "default": "anthropic/claude-opus-4-5:high",
+    "plan": "openai/gpt-5.4"
+  },
+  "tools": ["read", "edit", "bash", "task"],
+  "mcp": {
+    "enabled": ["filesystem", "postgres"]
+  },
+  "boundPaths": ["~/work/projectA"]
+}
 ```
 
-未设置的字段沿用 omp 的现有配置。
+`modelRoles` 的值形如 `provider/model:thinking`，结尾的 `:high` 是思考档位
+（可选 off/minimal/low/medium/high/xhigh）。未设置的字段沿用 omp 的现有配置。
 
 ## 切换时的生效范围
 

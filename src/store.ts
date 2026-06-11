@@ -1,10 +1,14 @@
 /**
  * Profile persistence: discovery, load, save, delete.
  *
- * Profiles live as single YAML files in two scopes, mirroring omp's own
+ * Profiles live as single JSON files in two scopes, mirroring omp's own
  * config layering:
- *   - user:    ~/.omp/agent/profiles/<name>.yml
- *   - project: <cwd>/.omp/profiles/<name>.yml   (overrides same-named user)
+ *   - user:    ~/.omp/agent/profiles/<name>.json
+ *   - project: <cwd>/.omp/profiles/<name>.json   (overrides same-named user)
+ *
+ * JSON (not YAML) so the plugin has zero third-party runtime dependencies:
+ * omp loads extensions through its own module loader, where a bare npm
+ * dependency like `yaml` may not resolve and would abort extension loading.
  *
  * The built-in `empty` profile is always present. We never read or write
  * omp's global config (~/.omp/agent/config.yml, models.yml, mcp.json) — the
@@ -12,7 +16,6 @@
  */
 import { mkdir, readdir, readFile, stat, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { emptyProfile, isReservedName } from "./builtin.js";
 import { isValidProfileName, validateProfile, type Profile } from "./schema.js";
 
@@ -34,12 +37,11 @@ export interface ProfileStoreOptions {
   cwd: string;
 }
 
-const YAML_EXTS = [".yml", ".yaml"];
+const PROFILE_EXT = ".json";
 
 function stripExt(file: string): string | undefined {
-  const lower = file.toLowerCase();
-  for (const ext of YAML_EXTS) {
-    if (lower.endsWith(ext)) return file.slice(0, file.length - ext.length);
+  if (file.toLowerCase().endsWith(PROFILE_EXT)) {
+    return file.slice(0, file.length - PROFILE_EXT.length);
   }
   return undefined;
 }
@@ -99,13 +101,13 @@ export class ProfileStore {
       }
       let parsed: unknown;
       try {
-        parsed = parseYaml(raw);
+        parsed = JSON.parse(raw);
       } catch (err) {
         out.push({
           profile: { name: stem },
           scope,
           path,
-          warnings: [`Failed to parse YAML: ${(err as Error).message}`],
+          warnings: [`Failed to parse JSON: ${(err as Error).message}`],
         });
         continue;
       }
@@ -126,8 +128,7 @@ export class ProfileStore {
 
   /**
    * All known profiles, de-duplicated by name with precedence
-   * project > user > builtin. Returned sorted by name (built-ins last among
-   * ties already removed).
+   * project > user > builtin. Returned sorted by name.
    */
   async list(): Promise<StoredProfile[]> {
     const byName = new Map<string, StoredProfile>();
@@ -161,7 +162,7 @@ export class ProfileStore {
   }
 
   /**
-   * Save a profile as YAML. Defaults to the user scope. Refuses reserved
+   * Save a profile as JSON. Defaults to the user scope. Refuses reserved
    * (built-in) names and invalid names. Returns the written file path.
    */
   async save(
@@ -176,13 +177,13 @@ export class ProfileStore {
     }
     const dir = this.dirForScope(scope);
     await mkdir(dir, { recursive: true });
-    const path = join(dir, `${profile.name}.yml`);
-    await writeFile(path, stringifyYaml(profile), "utf8");
+    const path = join(dir, `${profile.name}${PROFILE_EXT}`);
+    await writeFile(path, `${JSON.stringify(profile, null, 2)}\n`, "utf8");
     return path;
   }
 
   /**
-   * Delete a profile's file(s). Returns true if anything was removed. Built-in
+   * Delete a profile's file. Returns true if anything was removed. Built-in
    * profiles cannot be deleted.
    */
   async delete(name: string): Promise<boolean> {
@@ -191,15 +192,12 @@ export class ProfileStore {
     }
     let removed = false;
     for (const scope of ["project", "user"] as const) {
-      const dir = this.dirForScope(scope);
-      for (const ext of YAML_EXTS) {
-        const path = join(dir, `${name}${ext}`);
-        try {
-          await unlink(path);
-          removed = true;
-        } catch {
-          // not present in this scope/ext; ignore
-        }
+      const path = join(this.dirForScope(scope), `${name}${PROFILE_EXT}`);
+      try {
+        await unlink(path);
+        removed = true;
+      } catch {
+        // not present in this scope; ignore
       }
     }
     return removed;

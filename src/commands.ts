@@ -17,7 +17,6 @@ import type {
   ExtensionCommandContext,
   ExtensionUISelectItem,
 } from "@oh-my-pi/pi-coding-agent";
-import { stringify as stringifyYaml } from "yaml";
 import { applyProfile } from "./apply.js";
 import { isReservedName } from "./builtin.js";
 import { type Role } from "./roles.js";
@@ -196,7 +195,7 @@ export function formatProfileShow(sp: StoredProfile, current: string | undefined
   const header =
     `Profile: ${sp.profile.name} [${SCOPE_TAG[sp.scope]}]` +
     (sp.profile.name === current ? " (active)" : "");
-  const body = stringifyYaml(sp.profile).trimEnd();
+  const body = JSON.stringify(sp.profile, null, 2);
   const lines = [header, "", body];
   if (sp.warnings.length > 0) {
     lines.push("", "Warnings:", ...sp.warnings.map((w) => `  - ${w}`));

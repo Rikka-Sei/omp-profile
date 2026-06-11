@@ -64,13 +64,13 @@ describe("ProfileStore", () => {
   test("invalid profile content surfaces as warnings", async () => {
     const dir = join(home, ".omp", "agent", "profiles");
     await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, "broken.yml"), "just a scalar string\n");
+    await writeFile(join(dir, "broken.json"), "{ not valid json");
     const store = new ProfileStore({ home, cwd });
     const sp = await store.get("broken");
     expect(sp?.warnings.length).toBeGreaterThan(0);
   });
 
-  test("round-trips a rich profile through YAML", async () => {
+  test("round-trips a rich profile through JSON", async () => {
     const store = new ProfileStore({ home, cwd });
     await store.save({
       name: "rich",
